@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="grannycare">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>grannycare</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Passkeys Web SDK — required by supabase_flutter on web. -->
+  <script src="passkeys_bundle.js"></script>
+
+  <!-- Web Push helpers called by Dart via js_util.callMethod -->
+  <script>
+    // Converts a base64url string to a Uint8Array (for applicationServerKey).
+    function _b64urlToArray(b64url) {
+      const pad = '='.repeat((4 - b64url.length % 4) % 4);
+      const b64 = (b64url + pad).replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(b64);
+      return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+    }
+
+    // Called from Dart after sign-in.
+    // Returns a JSON string { endpoint, p256dh, auth } or null if unavailable.
+    async function initWebPush(vapidPublicKey) {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+      try {
+        const reg = await navigator.serviceWorker.register('/push-sw.js');
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return null;
+        await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: _b64urlToArray(vapidPublicKey),
+        });
+        const p256dh = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh'))));
+        const auth   = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth'))));
+        const result = JSON.stringify({ endpoint: sub.endpoint, p256dh, auth });
+        localStorage.setItem('gc_push_sub', result);
+        return result;
+      } catch (e) {
+        console.log('Web Push setup:', e);
+        return null;
+      }
+    }
+  </script>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
